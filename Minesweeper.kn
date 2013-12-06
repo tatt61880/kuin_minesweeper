@@ -1,0 +1,201 @@
+{{{
+	マインスイーパ for Kuin 1.00
+	Last Modified: 2013/12/07 02:53:06.
+
+	作成:
+		Tatt (@tatt61880)
+		https://twitter.com/tatt61880
+}}}
+
+func Init(cfg: Kuin@CCfg)
+	do cfg.Title :: "Minesweeper"
+end func
+
+const TexHeight: float :: 24.0
+const Width: int :: 8
+const Height: int :: 5
+const Ratio: float :: 0.25
+const Mines: int :: ((@Width * @Height)$ float * @Ratio)$ int
+const NotMines: int :: @Width * @Height - @Mines
+const Size: float :: 48.0
+
+var Digits: Draw@CTex
+var Squares: [][]@Square
+var OpenCount: int
+var ClickFlag: bool
+var ClickFlagL: bool
+var ClickFlagR: bool
+var GameOver: bool
+var GameClear: bool
+
+class Square()
+	var mine: int
+	var state: @EState
+	var number: int
+end class
+
+enum EState
+	NotClicked
+	Clicked
+	Flagged
+end enum
+
+func Main()
+	do @Digits :: Draw@LoadTex("digits.kntex")
+	while restart()
+		do @GameOver :: false
+		do @GameClear :: false
+		do @ClickFlag :: false
+		do @ClickFlagL :: false
+		do @ClickFlagR :: false
+		do @OpenCount :: 0
+		do InitSqures()
+		do SetMines(@Mines)
+		while a()
+			do Kuin@Act()
+			do DrawSquares()
+			if(Input@Pad(0, Input@EBtn#A) = 1)
+				do Dbg@Log("ReStart")
+				continue restart
+			end if
+			if(@GameOver)
+				continue a
+			end if
+			do ClickCheck()
+		end while
+	end while
+
+	{初期化}
+	func InitSqures()
+		do @Squares :: #[@Height + 2][]@Square
+		foreach s(@Squares)
+			do s :: #[@Width + 2]@Square
+			foreach a(s)
+				do a :: #@Square
+			end foreach
+		end foreach
+	end func
+
+	{地雷をセット}
+	func SetMines(num: int)
+		var mineFlags: []int :: #[@Width * @Height]int
+		for i(0, num - 1)
+			do mineFlags[i] :: 1
+		end for
+		do mineFlags.Shuffle()
+		for i(0, mineFlags.Len() - 1)
+			do @Squares[i / @Width + 1][i % @Width + 1].mine :: mineFlags[i]
+		end for
+		for row(1, @Height)
+			for col(1, @Width)
+				do @Squares[row][col].number :: @Squares[row - 1][col - 1].mine + @Squares[row - 1][col].mine + @Squares[row - 1][col + 1].mine + @Squares[row][col - 1].mine +  @Squares[row][col + 1].mine + @Squares[row + 1][col - 1].mine + @Squares[row + 1][col].mine + @Squares[row + 1][col + 1].mine
+			end for
+		end for
+	end func
+
+	{入力チェック}
+	func ClickCheck()
+		var row: int :: Input@MouseY() $int / @Size$ int
+		var col: int :: Input@MouseX() $int / @Size$ int
+
+		if(Input@Mouse(Input@EMouse#Left) > 0)
+			do @ClickFlagL :: true
+			if(Input@Mouse(Input@EMouse#Right) > 0) {同時押し}
+				do @ClickFlag :: false
+				if(@InArea(row, col) & @Squares[row][col].state = @EState#Clicked & (@Flagged(row - 1, col - 1) + @Flagged(row - 1, col) + @Flagged(row - 1, col + 1) + @Flagged(row, col - 1) + @Flagged(row, col + 1) + @Flagged(row + 1, col - 1) + @Flagged(row + 1, col) + @Flagged(row + 1, col + 1) = @Squares[row][col].number))
+					do @OpenAround(row, col)
+				end if
+			end if
+		elif(Input@Mouse(Input@EMouse#Right) > 0)
+			do @ClickFlagR :: true
+		elif(@ClickFlag & @ClickFlagL) {押していた左ボタンを離したときの処理}
+			do @ClickFlag :: false
+			do @ClickFlagL :: false
+			if(@InArea(row, col))
+				do @Open(row, col)
+			end if
+		elif(@ClickFlag & @ClickFlagR) {押していた右ボタンを離したときの処理}
+			do @ClickFlag :: false
+			do @ClickFlagR :: false
+			if(@InArea(row, col))
+				switch(@Squares[row][col].state)
+				case(@EState#NotClicked)
+					do @Squares[row][col].state :: @EState#Flagged
+				case(@EState#Clicked)
+				case(@EState#Flagged)
+					do @Squares[row][col].state :: @EState#NotClicked
+				end switch
+			end if
+		else
+			do @ClickFlag :: true
+			do @ClickFlagL :: false
+			do @ClickFlagR :: false
+		end if
+	end func
+
+	{描画}
+	func DrawSquares()
+		for row(1, @Height)
+			for col(1, @Width)
+				switch s(@Squares[row][col].state)
+				case(@EState#NotClicked, @EState#Flagged)
+					if(@GameClear)
+						do Draw@Rect(col$ float * @Size, row$ float * @Size, @Size, @Size, 0.0, 0.0, 1.0, 1.0)
+					else
+						do @Digits.DrawScale(0.0, 0.0, @TexHeight, @TexHeight, col$ float * @Size, row$ float * @Size, @Size, @Size, 1.0, 1.0, s = @EState#NotClicked ?(1.0, 0.0), 1.0)
+					end if
+				case(@EState#Clicked)
+					if(@Squares[row][col].mine = 1)
+						do Draw@Rect(col$ float * @Size, row$ float * @Size, @Size, @Size, 1.0, 0.0, 0.0, 1.0)
+					else
+						do @Digits.DrawScale(@Squares[row][col].number$ float * @TexHeight, 0.0, @TexHeight, @TexHeight, col$ float * @Size, row$ float * @Size, @Size, @Size, 0.8, 0.8, 0.8, 1.0)
+					end if
+				end switch
+			end for
+		end for
+	end func
+end func
+
+func Open(row: int, col: int)
+	if(!@InArea(row, col))
+		return
+	end if
+	if(@Squares[row][col].state = @EState#NotClicked)
+		do @Squares[row][col].state :: @EState#Clicked
+		if(@Squares[row][col].mine = 1)
+			do @GameOver :: true
+			do Dbg@Log("=== GAMEOVER ===")
+			return
+		end if
+
+		do @OpenCount :+ 1
+		do Dbg@Log("OpenCount = " ~ @OpenCount.ToStr())
+		if(@OpenCount = @NotMines)
+			do @GameClear :: true
+			do Dbg@Log("☆ GAMECLEAR ☆")
+		end if
+
+		if(@Squares[row][col].number = 0)
+			do @OpenAround(row, col)
+		end if
+	end if
+end func
+
+func Flagged(row: int, col: int): int
+	return @Squares[row][col].state = @EState#Flagged ?(1, 0)
+end func
+
+func OpenAround(row: int, col: int)
+	do @Open(row - 1, col - 1)
+	do @Open(row - 1, col)
+	do @Open(row - 1, col + 1)
+	do @Open(row, col - 1)
+	do @Open(row, col + 1)
+	do @Open(row + 1, col - 1)
+	do @Open(row + 1, col)
+	do @Open(row + 1, col + 1)
+end func
+
+func InArea(row: int, col: int): bool
+	return (row >= 1 & row <= @Height & col >= 1 & col <= @Width)
+end func
