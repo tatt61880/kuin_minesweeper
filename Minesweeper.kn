@@ -1,10 +1,9 @@
 {{{
 	マインスイーパ for Kuin 1.00
-	Last Modified: 2013/12/07 02:53:06.
+	Last Modified: 2013/12/07 16:49:04.
 
 	作成:
-		Tatt (@tatt61880)
-		https://twitter.com/tatt61880
+		Tatt (@tatt61880) https://twitter.com/tatt61880
 }}}
 
 func Init(cfg: Kuin@CCfg)
@@ -197,5 +196,5 @@ func OpenAround(row: int, col: int)
 end func
 
 func InArea(row: int, col: int): bool
-	return (row >= 1 & row <= @Height & col >= 1 & col <= @Width)
+	return (1 <= row & row <= @Height & 1 <= col & col <= @Width)
 end func
